@@ -31,6 +31,7 @@ class DatasetToBag(object):
         self.dataset_number = self.read_parameter('~dataset_number', 9)
         self.write_images = self.read_parameter('~write_images', False)
         self.units_metric = self.read_parameter('~units_metric', 1000)
+        self.publish_nao_gt = self.read_parameter('~publish_nao_gt', True)
 
         # create bag
         self.bag_filename = 'dataset_%d.bag' % self.dataset_number
@@ -166,6 +167,20 @@ class DatasetToBag(object):
             T_torso.transform.translation.y = torso_y / self.units_metric
             T_torso.transform.translation.z = torso_z / self.units_metric
             self.bag.write('/tf', TFMessage([T_torso]), ros_stamp)
+
+            if self.publish_nao_gt:
+                T_nao_gt = TransformStamped()
+                T_nao_gt.header.frame_id = "gt_torso"
+                T_nao_gt.child_frame_id = "base_link"
+                T_nao_gt.header.stamp = ros_stamp
+                T_nao_gt.transform.rotation.x = 0.0
+                T_nao_gt.transform.rotation.y = 0.0
+                T_nao_gt.transform.rotation.z = 0.0
+                T_nao_gt.transform.rotation.w = 1.0
+                T_nao_gt.transform.translation.x = 0.0
+                T_nao_gt.transform.translation.y = 0.0
+                T_nao_gt.transform.translation.z = 0.0
+                self.bag.write('/tf', TFMessage([T_nao_gt]), ros_stamp)
 
             #rospy.loginfo(T_head.header.stamp.to_sec())
             #rospy.loginfo(T_torso.header.stamp.to_sec())
