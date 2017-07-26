@@ -1,0 +1,28 @@
+<launch>
+  <arg name="version"  default="V40"       doc="The NAO version currently used" />
+  <arg name="dataset" default="9"          doc="Dataset to run"/>
+
+  <!-- NAO description -->
+  <!-- Dependency: NAO description -->
+  <include file="$(find nao_description)/launch/upload_nao.launch" >
+    <arg name="version" value="$(arg version)" />
+  </include>
+
+  <!-- Launch complete robot model with base_footprint -->
+  <node pkg="nao_description" type="base_footprint" name="base_footprint"/>
+
+  <!-- Load the robot state publisher -->
+  <node pkg="robot_state_publisher" type="state_publisher" name="robot_state_publisher">
+    <param name="publish_frequency" type="double" value="200.0"/>
+    <param name="use_tf_static" type="bool" value="true"/>
+    <param name="ignore_timestamp" type="bool" value="false"/>
+  </node>
+
+  <!-- rosbag play -->
+	<node pkg="rosbag" type="play" name="player" output="screen" args="--clock $(find nao_dataset_to_ros)/datasets/dataset_$(arg dataset).bag"/>
+
+  <!-- run Rviz -->
+  <arg name="config_file" value="$(find nao_description)/config/urdf.rviz"/>
+  <node name="$(anon rviz)" pkg="rviz" type="rviz" respawn="false" output="screen" args="-d $(arg config_file)" />
+
+</launch>
