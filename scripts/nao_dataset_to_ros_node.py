@@ -72,7 +72,7 @@ class DatasetPublisher(object):
 
                 # rebuild timestamp
                 timestamp = seconds + microseconds * 10**-6
-                
+
                 # read image
                 image_bytes = file_image.read(153600)
                 #print(image_bytes)
@@ -85,7 +85,7 @@ class DatasetPublisher(object):
                     cv2.imwrite( ('%s_%s.bmp' % (seconds, microseconds)), rgb)
 
         # Read ground truth
-        ground_truth = np.genfromtxt(groundtruth_filename, delimiter=',', comments='#')
+        ground_truth = np.genfromtxt(groundtruth_filename, delimiter=',', comments='#', skip_footer=1)
         #rospy.loginfo(np.shape(ground_truth))
         for line in ground_truth:
             (timestamp, head_rx, head_ry, head_rz, head_x, head_y, head_z, torso_rx, torso_ry, torso_rz, torso_x, torso_y, torso_z) = line
