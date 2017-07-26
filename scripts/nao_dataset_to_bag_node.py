@@ -179,11 +179,6 @@ class DatasetToBag(object):
         hardware = np.genfromtxt(self.hardware_filename, delimiter=';', comments='#', skip_footer=1)
         #rospy.loginfo(np.shape(ground_truth))
         for line in hardware:
-            # prepare message
-            if is_first:
-                initial_time = rospy.Duration().from_sec(timestamp)
-                is_first = False
-
             (timestamp, \
             servo_enabled, \
             head_yaw, head_pitch, \
@@ -208,23 +203,86 @@ class DatasetToBag(object):
             battery_charge, \
             time) = line
 
+            # prepare message
+            if is_first:
+                initial_time = rospy.Duration().from_sec(timestamp)
+                is_first = False
+
             # timestamp
             ros_stamp = rospy.Time().from_sec(timestamp) - initial_time
 
             # IMU
-            ros_imu = IMU()
+            ros_imu = Imu()
             ros_imu.header.stamp = ros_stamp
             ros_imu.header.frame_id = '/Imu'
-            ros_imu.orientation.angular_velocity.x = accel_x
-            ros_imu.orientation.angular_velocity.y = accel_y
-            ros_imu.orientation.angular_velocity.z = accel_z
-            ros_imu.orientation.linear_acceleration.x = accel_x
-            ros_imu.orientation.linear_acceleration.y = accel_y
-            ros_imu.orientation.linear_acceleration.z = accel_z
+            ros_imu.angular_velocity.x = accel_x
+            ros_imu.angular_velocity.y = accel_y
+            ros_imu.angular_velocity.z = accel_z
+            ros_imu.linear_acceleration.x = accel_x
+            ros_imu.linear_acceleration.y = accel_y
+            ros_imu.linear_acceleration.z = accel_z
             self.bag.write('/imu/data_raw', ros_imu, ros_stamp)
 
             # JointState
-            joints = JointState()
+            ros_joints = JointState()
+            ros_joints.header.stamp = ros_stamp
+
+            ros_joints.name = [None]*26
+            ros_joints.position = [0]*26
+
+            ros_joints.name[0]      = "HeadYaw"
+            ros_joints.position[0]  = head_yaw
+            ros_joints.name[1]      = "HeadPitch"
+            ros_joints.position[1]  = head_pitch
+            ros_joints.name[2]      = "LHipYawPitch"
+            ros_joints.position[2]  = l_hip_yaw_pitch
+            ros_joints.name[3]      = "LHipRoll"
+            ros_joints.position[3]  = l_hip_roll
+            ros_joints.name[4]      = "LHipPitch"
+            ros_joints.position[4]  = l_hip_pitch
+            ros_joints.name[5]      = "LKneePitch"
+            ros_joints.position[5]  = l_knee_pitch
+            ros_joints.name[6]      = "LAnklePitch"
+            ros_joints.position[6]  = l_ankle_pitch
+            ros_joints.name[7]      = "LAnkleRoll"
+            ros_joints.position[7]  = l_ankle_roll
+            ros_joints.name[8]      = "RHipYawPitch"
+            ros_joints.position[8]  = r_hip_yaw_pitch
+            ros_joints.name[9]      = "RHipRoll"
+            ros_joints.position[9]  = r_hip_roll
+            ros_joints.name[10]     = "RHipPitch"
+            ros_joints.position[10] = r_hip_pitch
+            ros_joints.name[11]     = "RKneePitch"
+            ros_joints.position[11] = r_knee_pitch
+            ros_joints.name[12]     = "RAnklePitch"
+            ros_joints.position[12] = r_ankle_pitch
+            ros_joints.name[13]     = "RAnkleRoll"
+            ros_joints.position[13] = r_ankle_roll
+            ros_joints.name[14]     = "LShoulderPitch"
+            ros_joints.position[14] = l_shoulder_pitch
+            ros_joints.name[15]     = "LShoulderRoll"
+            ros_joints.position[15] = l_shoulder_roll
+            ros_joints.name[16]     = "LElbowYaw"
+            ros_joints.position[16] = l_elbow_yaw
+            ros_joints.name[17]     = "LElbowRoll"
+            ros_joints.position[17] = l_elbow_roll
+            ros_joints.name[18]     = "LWristYaw"
+            ros_joints.position[18] = 0
+            ros_joints.name[19]     = "LHand"
+            ros_joints.position[19] = 0
+            ros_joints.name[20]     = "RShoulderPitch"
+            ros_joints.position[20] = r_shoulder_pitch
+            ros_joints.name[21]     = "RShoulderRoll"
+            ros_joints.position[21] = r_shoulder_roll
+            ros_joints.name[22]     = "RElbowYaw"
+            ros_joints.position[22] = r_elbow_yaw
+            ros_joints.name[23]     = "RElbowRoll"
+            ros_joints.position[23] = r_elbow_roll
+            ros_joints.name[24]     = "RWristYaw"
+            ros_joints.position[24] = 0
+            ros_joints.name[25]     = "RHand"
+            ros_joints.position[25] = 0
+            self.bag.write('/joint_states', ros_joints, ros_stamp)
 
             # FSR
             ros_l_fsr = Float32MultiArray()
