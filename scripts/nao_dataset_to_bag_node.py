@@ -9,6 +9,9 @@ import rospkg
 import tf
 import tf.transformations as tr
 
+# Standard messages
+from std_msgs.msg import Float32, Float32MultiArray
+
 # Sensors
 from sensor_msgs.msg import Imu, JointState, Image
 from cv_bridge import CvBridge, CvBridgeError
@@ -43,7 +46,7 @@ class DatasetToBag(object):
         script_dir = self.rospack.get_path('nao_dataset_to_ros')#os.path.dirname(os.path.abspath(__file__))
         self.images_filename      = '%s/datasets/dataset_%d/camera_%d.strm' % (script_dir, self.dataset_number, self.dataset_number)
         self.groundtruth_filename = '%s/datasets/dataset_%d/ground_truth_%d.csv' % (script_dir, self.dataset_number, self.dataset_number)
-        self.hardware_filename    = '%s/datasets/dataset_%d/hardware_current_%d.csv' % (script_dir, self.dataset_number, self.dataset_number)
+        self.hardware_filename    = '%s/datasets/dataset_%d/hardware_%d.csv' % (script_dir, self.dataset_number, self.dataset_number)
         #rospy.loginfo(self.images_filename)
         #rospy.loginfo(self.groundtruth_filename)
         #rospy.loginfo(self.hardware_filename)
@@ -56,6 +59,7 @@ class DatasetToBag(object):
         rospy.loginfo('Reading sensors ...')
         self.read_sensors()
 
+        rospy.loginfo('Closing rosbag')
         self.bag.close()
 
 
@@ -131,11 +135,13 @@ class DatasetToBag(object):
                 initial_time = rospy.Duration().from_sec(timestamp)
                 is_first = False
 
+            ros_stamp = rospy.Time().from_sec(timestamp) - initial_time
+
             # fill head transformation
             T_head = TransformStamped()
             T_head.header.frame_id = "world"
             T_head.child_frame_id = "gt_head"
-            T_head.header.stamp = rospy.Time().from_sec(timestamp) - initial_time
+            T_head.header.stamp = ros_stamp
             angles_head = tr.quaternion_from_euler(head_rx, head_ry, head_rz)
             T_head.transform.rotation.x = angles_head[0]
             T_head.transform.rotation.y = angles_head[1]
@@ -144,13 +150,13 @@ class DatasetToBag(object):
             T_head.transform.translation.x = head_x / self.units_metric
             T_head.transform.translation.y = head_y / self.units_metric
             T_head.transform.translation.z = head_z / self.units_metric
-            self.bag.write('/tf', TFMessage([T_head]), T_head.header.stamp)
+            self.bag.write('/tf', TFMessage([T_head]), ros_stamp)
 
             # fill torso transformation
             T_torso = TransformStamped()
             T_torso.header.frame_id = "world"
             T_torso.child_frame_id = "gt_torso"
-            T_torso.header.stamp = rospy.Time().from_sec(timestamp) - initial_time
+            T_torso.header.stamp = ros_stamp
             angles_torso = tr.quaternion_from_euler(torso_rx, torso_ry, torso_rz)
             T_torso.transform.rotation.x = angles_torso[0]
             T_torso.transform.rotation.y = angles_torso[1]
@@ -159,13 +165,85 @@ class DatasetToBag(object):
             T_torso.transform.translation.x = torso_x / self.units_metric
             T_torso.transform.translation.y = torso_y / self.units_metric
             T_torso.transform.translation.z = torso_z / self.units_metric
-            self.bag.write('/tf', TFMessage([T_torso]), T_torso.header.stamp)
+            self.bag.write('/tf', TFMessage([T_torso]), ros_stamp)
 
             #rospy.loginfo(T_head.header.stamp.to_sec())
             #rospy.loginfo(T_torso.header.stamp.to_sec())
 
     def read_sensors(self):
-        print('TODO')
+        # initial time normalization
+        initial_time = 0
+        is_first = True
+
+        # Read ground truth
+        hardware = np.genfromtxt(self.hardware_filename, delimiter=';', comments='#', skip_footer=1)
+        #rospy.loginfo(np.shape(ground_truth))
+        for line in hardware:
+            # prepare message
+            if is_first:
+                initial_time = rospy.Duration().from_sec(timestamp)
+                is_first = False
+
+            (timestamp, \
+            servo_enabled, \
+            head_yaw, head_pitch, \
+            l_shoulder_pitch, l_shoulder_roll, \
+            l_elbow_yaw, l_elbow_roll, \
+            l_hip_yaw_pitch, l_hip_roll, l_hip_pitch, \
+            l_knee_pitch, \
+            l_ankle_pitch, l_ankle_roll, \
+            r_hip_yaw_pitch, r_hip_roll, r_hip_pitch, \
+            r_knee_pitch, \
+            r_ankle_pitch, r_ankle_roll, \
+            r_shoulder_pitch, r_shoulder_roll, \
+            r_elbow_yaw, r_elbow_roll, \
+            accel_x, accel_y, accel_z, \
+            gyro_x, gyro_y, gyro_ref, \
+            l_fsr_fl, l_fsr_fr, l_fsr_rl, l_fsr_rr, \
+            r_fsr_fl, r_fsr_fr, r_fsr_rl, r_fsr_rr, \
+            us_distance_left, us_distance_right, \
+            l_bumper_l, l_bumper_r, \
+            r_bumper_l, r_bumper_r, \
+            chest_button, \
+            battery_charge, \
+            time) = line
+
+            # timestamp
+            ros_stamp = rospy.Time().from_sec(timestamp) - initial_time
+
+            # IMU
+            ros_imu = IMU()
+            ros_imu.header.stamp = ros_stamp
+            ros_imu.header.frame_id = '/Imu'
+            ros_imu.orientation.angular_velocity.x = accel_x
+            ros_imu.orientation.angular_velocity.y = accel_y
+            ros_imu.orientation.angular_velocity.z = accel_z
+            ros_imu.orientation.linear_acceleration.x = accel_x
+            ros_imu.orientation.linear_acceleration.y = accel_y
+            ros_imu.orientation.linear_acceleration.z = accel_z
+            self.bag.write('/imu/data_raw', ros_imu, ros_stamp)
+
+            # JointState
+            joints = JointState()
+
+            # FSR
+            ros_l_fsr = Float32MultiArray()
+            ros_l_fsr.data = [l_fsr_fl, l_fsr_fr, l_fsr_rl, l_fsr_rr]
+            self.bag.write('/fsr/l', ros_l_fsr, ros_stamp)
+
+            ros_r_fsr = Float32MultiArray()
+            ros_r_fsr.data = [r_fsr_fl, r_fsr_fr, r_fsr_rl, r_fsr_rr]
+            self.bag.write('/fsr/r', ros_r_fsr, ros_stamp)
+
+            # Battery
+            ros_battery = Float32()
+            ros_battery.data = battery_charge
+            self.bag.write('/battery', ros_battery, ros_stamp)
+
+            # USs
+            ros_us = Float32MultiArray()
+            ros_us.data = [us_distance_left, us_distance_right]
+            self.bag.write('/us', ros_us, ros_stamp)
 
     def read_parameter(self, name, default):
         """
